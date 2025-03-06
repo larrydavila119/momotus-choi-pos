@@ -9,17 +9,22 @@ class AddPaymentDialog extends StatelessWidget {
   final String monthlyId;
   final String clientId;
   final String monthlyName;
+  final List<dynamic> monthList;
 
-  const AddPaymentDialog({
-    super.key,
-    required this.clientName,
-    required this.monthlyId,
-    required this.clientId,
-    required this.monthlyName
-  });
+  const AddPaymentDialog(
+      {super.key,
+      required this.clientName,
+      required this.monthlyId,
+      required this.clientId,
+      required this.monthlyName,
+      required this.monthList});
 
-  void onAddToCart(String client, String monthlyId, int totalMonthsToPay, String monthlyName,
-      BuildContext context) {
+  String getMonthsToPayText(List<dynamic> months) {
+    return months.map((m) => "${m['month']} ${m['year']}").join(", ");
+  }
+
+  void onAddToCart(String client, String monthlyId, int totalMonthsToPay,
+      String monthlyName, List<dynamic> monthsToPay, BuildContext context) {
     double price;
     switch (monthlyName) {
       case 'Mensualidad Standard':
@@ -39,14 +44,15 @@ class AddPaymentDialog extends StatelessWidget {
     }
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
 
-    final InventoryItem monthlyItem = InventoryItem(
+    final MonthlyItem monthlyItem = MonthlyItem(
         id: monthlyId,
-        name: "Mensualidad para $client",
+        name: "Mensualidad para $client (${getMonthsToPayText(monthsToPay)})",
         price: price,
         barCode: clientId,
         quantity: totalMonthsToPay,
         category: monthlyName,
-        currency: "\$");
+        currency: "\$",
+        monthsToPay: monthsToPay);
 
     cartProvider.cartItems.add(CartItem(
         item: monthlyItem, category: monthlyName, quantity: totalMonthsToPay));
@@ -58,6 +64,13 @@ class AddPaymentDialog extends StatelessWidget {
 
     return StatefulBuilder(
       builder: (context, setState) {
+        // 1. Obtener meses pendientes (donde 'paid' es false)
+        List pendingMonths =
+            monthList.where((month) => month['paid'] == false).toList();
+
+        // 2. Seleccionar los primeros 'selectedMonths' meses pendientes
+        List monthsToPay = pendingMonths.take(selectedMonths).toList();
+
         return AlertDialog(
           title: const Text("Pagar Mensualidad"),
           content: Column(
@@ -65,7 +78,7 @@ class AddPaymentDialog extends StatelessWidget {
             children: [
               Text("Nombre del estudiante: $clientName"),
               const SizedBox(height: 10),
-              Text("Tipo de mensualidad: $monthlyId"),
+              Text("Tipo de mensualidad: $monthlyName"),
               const SizedBox(height: 10),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -80,7 +93,8 @@ class AddPaymentDialog extends StatelessWidget {
                         });
                       }
                     },
-                    items: List.generate(12, (index) => index + 1)
+                    items: List.generate(
+                            pendingMonths.length, (index) => index + 1)
                         .map<DropdownMenuItem<int>>((int value) {
                       return DropdownMenuItem<int>(
                         value: value,
@@ -90,6 +104,9 @@ class AddPaymentDialog extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              const Text("Meses a pagar:"),
+              ...monthsToPay.map((m) => Text("${m['month']} ${m['year']}")),
             ],
           ),
           actions: [
@@ -99,7 +116,8 @@ class AddPaymentDialog extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () {
-                onAddToCart(clientName, monthlyId, selectedMonths, monthlyName, context);
+                onAddToCart(clientName, monthlyId, selectedMonths, monthlyName,
+                    monthsToPay, context);
                 context.pushReplacement("/app");
               },
               child: const Text("Añadir al carrito"),
